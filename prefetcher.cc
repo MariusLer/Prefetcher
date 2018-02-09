@@ -19,16 +19,21 @@ enum State{
 
 struct Rtp_entry{
   //A ddr tag;  // Program counter or LA-PC use tag as key in map
+  Rtp_entry(Addr addr) : prev_addr(addr), stride(0), state(initial){
+
+  }
   Addr prev_addr;
   int64_t stride;
   State state;
 };
 
-struct Rtp_table{
-  map<Addr, struct Rtp_entry> rtp_map;
-};
+map<Addr, struct Rtp_entry*> table;
 
-struct Rtp_table table;
+void issue_prefetch_check(Addr addr){
+  if((addr <= MAX_PHYS_MEM_ADDR) && (current_queue_size() < MAX_QUEUE_SIZE) && (!in_cache(addr)) && (!in_mshr_queue(addr))){
+    issue_prefetch(addr);
+  }
+}
 
 void prefetch_init(void){
     /* Called before any calls to prefetch_access. */
@@ -38,53 +43,47 @@ void prefetch_init(void){
 }
 
 void prefetch_access(AccessStat stat){
-  if(table.rtp_map.find(stat.pc) == table.rtp_map.end()){
-    struct Rtp_entry insert{stat.mem_addr, 0, initial};
-    table.rtp_map[stat.pc] = insert;
+  if(table.find(stat.pc) == table.end()){
+    struct Rtp_entry* new_entry = new Rtp_entry(stat.mem_addr);
+    table[stat.pc] = new_entry;
   }
   else{
-    struct Rtp_entry current_entry = table.rtp_map[stat.pc];
-
+    struct Rtp_entry* current_entry = table[stat.pc];
     if(stat.miss){
-      switch(current_entry.state){
+      current_entry->prev_addr = stat.mem_addr;
+      switch(current_entry->state){
         case initial:
-          current_entry.stride = stat.mem_addr - current_entry.prev_addr;
-          current_entry.prev_addr = stat.mem_addr;
-          current_entry.state = transient;
+          current_entry->stride = stat.mem_addr - current_entry->prev_addr;
+          current_entry->state = transient;
           break;
         case steady:
-          current_entry.prev_addr = stat.mem_addr;
-          current_entry.state = initial;
+          current_entry->state = initial;
           break;
         case transient:
-          current_entry.stride = stat.mem_addr - current_entry.prev_addr;
-          current_entry.prev_addr = stat.mem_addr;
-          current_entry.state = no_prediction;
+          current_entry->stride = stat.mem_addr - current_entry->prev_addr;
+          current_entry->state = no_prediction;
           break;
         case no_prediction:
-          current_entry.stride = stat.mem_addr - current_entry.prev_addr;
-          current_entry.prev_addr = stat.mem_addr;
+          current_entry->stride = stat.mem_addr - current_entry->prev_addr;
           break;
       }
     }
     else{
-      switch(current_entry.state){
+      switch(current_entry->state){
+        current_entry->prev_addr = stat.mem_addr;
         case initial:
         case steady:
         case transient:
-          current_entry.prev_addr = stat.mem_addr;
-          current_entry.state = steady;
           break;
         case no_prediction:
-          current_entry.prev_addr = stat.mem_addr;
-          current_entry.state = transient;
+          current_entry->state = transient;
           break;
       }
     }
-    if(current_entry.state != no_prediction){
-      issue_prefetch(current_entry.prev_addr + current_entry.stride);
+    if(current_entry->state != no_prediction){
+      issue_prefetch_check(current_entry->prev_addr + current_entry->stride);
     }
-    table.rtp_map[stat.pc] = current_entry;
+    table[stat.pc] = current_entry;
   }
 }
 
