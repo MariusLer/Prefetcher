@@ -18,7 +18,7 @@ enum State{
 };
 
 struct Rtp_entry{
-  //A ddr tag;  // Program counter or LA-PC use tag as key in map
+  //Addr tag;  // Program counter or LA-PC use tag as key in map
   Rtp_entry(Addr addr) : prev_addr(addr), stride(0), state(initial){
   }
   Addr prev_addr;
@@ -65,20 +65,20 @@ void prefetch_access(AccessStat stat){
           current_entry->stride = stat.mem_addr - current_entry->prev_addr;
           break;
       }
-      current_entry->prev_addr = stat.mem_addr;
     }
     else{
       switch(current_entry->state){
-        current_entry->prev_addr = stat.mem_addr;
         case initial:
         case steady:
         case transient:
+          current_entry->state = steady;
           break;
         case no_prediction:
           current_entry->state = transient;
           break;
       }
     }
+    current_entry->prev_addr = stat.mem_addr;
     if(current_entry->state != no_prediction){
       issue_prefetch_check(current_entry->prev_addr + current_entry->stride);
     }
