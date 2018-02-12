@@ -37,9 +37,18 @@ void prefetch_init(void){
     DPRINTF(HWPrefetch, "Initialized sequential-on-access prefetcher\n");
 }
 
+void issue_prefetch_check(Addr addr){
+  if((addr <= MAX_PHYS_MEM_ADDR) && (current_queue_size() < MAX_QUEUE_SIZE) && (!in_cache(addr)) && (!in_mshr_queue(addr))){
+    issue_prefetch(addr);
+  }
+}
+
 void prefetch_access(AccessStat stat){
   if(table.rtp_map.find(stat.pc) == table.rtp_map.end()){
-    struct Rtp_entry insert{stat.mem_addr, 0, initial};
+    struct Rtp_entry insert;
+    insert.prev_addr = stat.mem_addr;
+    insert.state = initial;
+    insert.stride = 0;
     table.rtp_map[stat.pc] = insert;
   }
   else{
@@ -82,7 +91,7 @@ void prefetch_access(AccessStat stat){
       }
     }
     if(current_entry.state != no_prediction){
-      issue_prefetch(current_entry.prev_addr + current_entry.stride);
+      issue_prefetch_check(current_entry.prev_addr + current_entry.stride);
     }
     table.rtp_map[stat.pc] = current_entry;
   }
