@@ -1,11 +1,42 @@
 /*
- * A sample prefetcher which does sequential one-block lookahead.
- * This means that the prefetcher fetches the next block _after_ the one that
- * was just accessed. It also ignores requests to blocks already in the cache.
+
  */
 
+#include <map>
 #include "interface.hh"
 
+#define NUM_DELTAS = 16
+#define NUM_ENTRIES = 512
+
+using namespace std;
+
+struct Dcpt_entry{
+  Dcpt_entry(Addr addr, struct Dcpt_entry* prev_i) : last_addr(addr), prev(prev_i), last_prefetch(0), deltas({0}){
+  }
+  Addr last_addr;
+  Addr last_prefetch;
+  int deltas[NUM_DELTAS];
+  int delta_ptr;
+  struct Dcpt_entry* next;
+  struct Dcpt_entry* prev;
+};
+
+struct Dcpt_table{
+  int current_num_entries;
+  struct Dcpt_entry* head;
+  struct Dcpt_entry* tail;
+
+  map<Addr, struct Dcpt_entry*> dcpt_map;
+};
+
+
+
+
+void issue_prefetch_check(Addr addr){
+  if((addr <= MAX_PHYS_MEM_ADDR) && (current_queue_size() < MAX_QUEUE_SIZE) && (!in_cache(addr)) && (!in_mshr_queue(addr))){
+    issue_prefetch(addr);
+  }
+}
 
 void prefetch_init(void)
 {

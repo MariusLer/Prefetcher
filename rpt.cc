@@ -4,6 +4,7 @@
  * was just accessed. It also ignores requests to blocks already in the cache.
  */
 #include <map>
+#include <stdio.h>
 #include "interface.hh"
 
 
@@ -36,6 +37,7 @@ void prefetch_access(AccessStat stat){
   if(table.find(stat.pc) == table.end()){
     struct Rtp_entry* new_entry = new Rtp_entry(stat.mem_addr);
     table[stat.pc] = new_entry;
+    numb_entries++;
     return;
   }
   struct Rtp_entry* current_entry = table[stat.pc];
