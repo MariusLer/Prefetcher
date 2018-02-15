@@ -11,13 +11,13 @@ using namespace std;
 
 struct Rtp_entry{
   //Addr tag;  // Program counter or LA-PC use tag as key in map
-  Rtp_entry(Addr addr) : prev_addr(addr), stride(0) /*state(initial)*/{
+  Rtp_entry(Addr addr) : prev_addr(addr), stride(0){
   }
   Addr prev_addr;
   int64_t stride;
 };
 
-unordered_map<Addr, struct Rtp_entry*> table;
+map<Addr, struct Rtp_entry*> table;
 
 void issue_prefetch_check(Addr addr){
   if((addr <= MAX_PHYS_MEM_ADDR) && (current_queue_size() < MAX_QUEUE_SIZE) && (!in_cache(addr)) && (!in_mshr_queue(addr))){
