@@ -1,7 +1,5 @@
 /*
- * A sample prefetcher which does sequential one-block lookahead.
- * This means that the prefetcher fetches the next block _after_ the one that
- * was just accessed. It also ignores requests to blocks already in the cache.
+  Simple implementation of a prefetcher using and rpt prefetching scheme
  */
 #include <map>
 #include <stdio.h>
@@ -43,7 +41,6 @@ void insert_new_entry(struct Rpt_table* table, struct Rpt_entry* entry, Addr pc)
     case NUM_ENTRIES:
       table->table.erase(table->tail->pc);
       table->tail = table->tail->next;
-      //table->table.erase(table->tail->prev->pc);
       delete table->tail->prev;
       table->tail->prev = NULL;
       table->head->next = entry;
@@ -70,7 +67,7 @@ void prefetch_init(void){
     /* Called before any calls to prefetch_access. */
     /* This is the place to initialize data structures. */
     rpt_table = new Rpt_table();
-    DPRINTF(HWPrefetch, "Initialized sequential-on-access prefetcher\n");
+    DPRINTF(HWPrefetch, "Initialized rpt prefetcher\n");
 }
 
 void prefetch_access(AccessStat stat){

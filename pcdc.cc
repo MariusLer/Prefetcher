@@ -3,33 +3,48 @@
  */
 
 #include <map>
+#include <queue>
 #include "interface.hh"
 
-#define NUM_DELTAS = 16
-#define NUM_ENTRIES = 512
+#define NUM_ENTRIES = 1024
 
 using namespace std;
 
-struct Dcpt_entry{
-  Dcpt_entry(Addr addr, struct Dcpt_entry* prev_i) : last_addr(addr), prev(prev_i), last_prefetch(0), deltas({0}){
-  }
-  Addr last_addr;
-  Addr last_prefetch;
-  int deltas[NUM_DELTAS];
-  int delta_ptr;
-  struct Dcpt_entry* next;
-  struct Dcpt_entry* prev;
+class circular_buffer{
+public:
+
 };
 
-struct Dcpt_table{
+
+
+struct Ghb_entry{
+
+
+  Addr miss_address;
+  struct Ghb_entry* link_ptr;
+};
+
+struct Ghb{
   int current_num_entries;
-  struct Dcpt_entry* head;
-  struct Dcpt_entry* tail;
+  struct Ghb_entry* head;
 
-  map<Addr, struct Dcpt_entry*> dcpt_map;
+  map<Addr,struct Ghb_entry> index_table;
+  queue<struct Ghb_entry*> buffer; // Holds NUM_ENTRIES number of recent misses
 };
 
+void Ghb_insert(struct Ghb* ghb, struct Ghb_entry* entry, Addr pc){
+  switch(ghb->current_num_entries){
+    case NUM_ENTRIES:
+      entry->link_ptr = index_table[pc];
+      ghb->index_table[pc] = entry;
+      ghb->buffer.pop();
+      ghb->buffer.push(entry);
+      ghb->head = entry;
 
+
+  }
+
+}
 
 
 void issue_prefetch_check(Addr addr){
@@ -48,16 +63,7 @@ void prefetch_init(void)
 
 void prefetch_access(AccessStat stat)
 {
-    /* pf_addr is now an address within the _next_ cache block */
-    Addr pf_addr = stat.mem_addr + BLOCK_SIZE;
 
-    /*
-     * Issue a prefetch request if a demand miss occured,
-     * and the block is not already in cache.
-     */
-    if (stat.miss && !in_cache(pf_addr)) {
-      issue_prefetch(pf_addr);
-    }
 }
 
 void prefetch_complete(Addr addr) {
