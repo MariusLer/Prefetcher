@@ -6,8 +6,7 @@
 #include <queue>
 #include "interface.hh"
 
-#define NUM_ENTRIES = 32768
-#define NUM_INDEXES
+#define NUM_ENTRIES 32768
 
 using namespace std;
 
