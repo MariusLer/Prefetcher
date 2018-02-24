@@ -2,7 +2,6 @@
   Simple implementation of a prefetcher using and rpt prefetching scheme
  */
 #include <map>
-#include <stdio.h>
 #include "interface.hh"
 
 #define NUM_ENTRIES 256
