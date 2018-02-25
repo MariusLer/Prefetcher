@@ -66,7 +66,6 @@ void prefetch_init(void){
     /* Called before any calls to prefetch_access. */
     /* This is the place to initialize data structures. */
     rpt_table = new Rpt_table();
-    DPRINTF(HWPrefetch, "Numb bytes of entry\n", sizeof(struct Rpt_entry));
     DPRINTF(HWPrefetch, "Initialized rpt prefetcher\n");
 }
 

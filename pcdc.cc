@@ -1,22 +1,17 @@
 /*
-
+ Implementation of a prefetcher using a Global History Buffer and delta correlation
  */
 
 #include <map>
 #include <queue>
 #include "interface.hh"
 
-
-#include <iostream> // remove this
-
-#define NUM_ENTRIES 1024
+#define NUM_ENTRIES 256
 #define INDEX_TABLE_SIZE 256
 #define PREFETCH_DEGREE 4
 #define LOOKBACK_DEGREE 12
 
 using namespace std;
-
-int NUM_MATCHES = 0;
 
 typedef struct Ghb_entry{
   Ghb_entry(Addr pc_, Addr miss_address_) : pc(pc_), miss_address(miss_address_), link_ptr(-1){
@@ -27,13 +22,12 @@ typedef struct Ghb_entry{
 } Ghb_entry;
 
 typedef struct Ghb{
-  Ghb() : head(0), current_indexes(0){
+  Ghb() : head(0), current_indexes(0), buf(){  // Had to initialize buf with Null pointers to avoid weird crash
   }
   map<Addr, int> index_table; //Index table that maps a pc to an index in the GHB circular buffer
   queue<Addr> index_queue;
 
   int head;
-  //int tail;
   int current_indexes;
   Ghb_entry* buf[NUM_ENTRIES];
 } Ghb;
@@ -56,11 +50,10 @@ void update_ghb(Ghb* ghb, Ghb_entry* entry){
         break;
     }
   }
-  entry->link_ptr = ghb->index_table[entry->pc];
+
   ghb->index_queue.push(entry->pc);
-
+  entry->link_ptr = ghb->index_table[entry->pc];
   delete ghb->buf[ghb->head];
-
   ghb->index_table[entry->pc] = ghb->head;
   ghb->buf[ghb->head] = entry;
   ghb->head = (ghb->head+1) % NUM_ENTRIES;
@@ -75,29 +68,16 @@ void prefetch_delta_correlation(Ghb* ghb, Addr pc){
   Addr addr_to_be_prefetched[PREFETCH_DEGREE] = {0};
 
   Ghb_entry* current_entry = ghb->buf[ghb->index_table[pc]];
-
-  /*
-  cout <<"Cur:" << current_entry->miss_address;
-  Ghb_entry* next_entry = ghb->buf[current_entry->link_ptr];
-  if(next_entry->pc == pc){
-    cout << "Next " << next_entry->miss_address << endl;
-  }
-  */
-
-
   if(current_entry->pc != pc){ // Check if index table entry is outdated
     return;
   }
   Ghb_entry* next_entry;
 
   // Find deltas
-  //cout << "PC " << pc;
   for(int i = LOOKBACK_DEGREE-1; i > -1; i--){
     next_entry = ghb->buf[current_entry->link_ptr];
-    //cout << " Next entry pc " << next_entry->pc;
     if(next_entry->pc == pc && next_entry!= current_entry){
       int delta = current_entry->miss_address - next_entry->miss_address;
-      //cout << delta;
       deltas[i] = delta;
       current_entry = next_entry;
     }
@@ -105,14 +85,6 @@ void prefetch_delta_correlation(Ghb* ghb, Addr pc){
       break;  // The nex element no longer holds a miss for the same pc
     }
   }
-  //cout << endl;
-
-  /*
-  for(int i = 0; i < LOOKBACK_DEGREE; i++){
-    cout << deltas[i] << " ";
-  } cout << endl;
-*/
-
 
   // Find correlation match in delta table
   int match = 0;
@@ -124,7 +96,6 @@ void prefetch_delta_correlation(Ghb* ghb, Addr pc){
       break;
     }
   }
-  //DPRINTF(HWPrefetch,"Match :\n", match);
   if(!match){ // Couldn't find pattern
     return;
   }
@@ -136,14 +107,11 @@ void prefetch_delta_correlation(Ghb* ghb, Addr pc){
       addr_to_be_prefetched[i] = addr_to_be_prefetched[i-1] + deltas[match_index+i];
     }
   }
-  //cout << "PC :" << pc << " Prefetch addresses: ";
   for(int i = 0; i < PREFETCH_DEGREE; i++){
-    if(addr_to_be_prefetched[i] != 0){
-      //cout << addr_to_be_prefetched[i] << " ";
+    if(addr_to_be_prefetched[i]){
       issue_prefetch_check(addr_to_be_prefetched[i]);
     }
   }
-  //cout << endl;
 }
 
 Ghb* ghb;
@@ -152,11 +120,11 @@ void prefetch_init(void){
     /* Called before any calls to prefetch_access. */
     /* This is the place to initialize data structures. */
     ghb = new Ghb();
-    DPRINTF(HWPrefetch, "Initialized sequential-on-access prefetcher\n");
+    DPRINTF(HWPrefetch, "Initialized global history buffer pcdc prefetcher\n");
 }
 
 void prefetch_access(AccessStat stat){
-  //cout << ghb->index_table[stat.pc] << endl;
+
   if(stat.miss){
     Ghb_entry* insert = new Ghb_entry(stat.pc, stat.mem_addr);
     update_ghb(ghb, insert);
