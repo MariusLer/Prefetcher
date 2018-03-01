@@ -8,12 +8,22 @@
 
 using namespace std;
 
+// Using head and tail was a stupid way to keep track of the first elemente inserted into table. Should have just used a fifo queue. #include <queue>
+
+enum State{
+  initial,
+  transient,
+  steady,
+  no_prediction
+};
+
 struct Rpt_entry{
-  Rpt_entry(Addr addr, Addr pc) : pc(pc), prev_addr(addr), stride(0), next(NULL), prev(NULL){
+  Rpt_entry(Addr addr, Addr pc) : pc(pc), prev_addr(addr), stride(0), state(initial), next(NULL), prev(NULL){
   }
   Addr pc; // Only really needed when deleting an element from the table
   Addr prev_addr;
-  int64_t stride;
+  int stride;
+  State state;
   struct Rpt_entry* next; // The entry entered after
   struct Rpt_entry* prev; // The entry entered before
 };
@@ -76,9 +86,43 @@ void prefetch_access(AccessStat stat){
     return;
   }
   struct Rpt_entry* current_entry = rpt_table->table[stat.pc];
-  current_entry->stride = stat.mem_addr - current_entry->prev_addr;
+  int new_stride = stat.mem_addr - current_entry->prev_addr;
+
+  if(new_stride != current_entry->stride){ // Prediction was not correct
+    switch(current_entry->state){
+      case initial:
+        current_entry->stride = new_stride;
+        current_entry->state = transient;
+        break;
+      case transient:
+        current_entry->stride = new_stride;
+        current_entry->state = no_prediction;
+        break;
+      case steady:
+        current_entry->state = initial;
+        break;
+      case no_prediction:
+        current_entry->stride = new_stride;
+        break;
+    }
+  }
+  else{   // Prediction was correct
+    switch(current_entry->state){
+      case initial:
+      case transient:
+      case steady:
+        current_entry->state = steady;
+        break;
+      case no_prediction:
+        current_entry->state = transient;
+        break;
+    }
+  }
   current_entry->prev_addr = stat.mem_addr;
-  issue_prefetch_check(current_entry->prev_addr + current_entry->stride);
+
+  if(current_entry->state != no_prediction){
+    issue_prefetch_check(current_entry->prev_addr + current_entry->stride);
+  }
 }
 
 void prefetch_complete(Addr addr){
