@@ -8,7 +8,8 @@
 
 #define NUM_ENTRIES 256
 #define INDEX_TABLE_SIZE 256
-#define PREFETCH_DEGREE 4
+#define NUM_BLOCKS_PREFETCH 4
+#define MATCH_DEGREE 3
 #define LOOKBACK_DEGREE 12
 
 using namespace std;
@@ -65,7 +66,7 @@ void prefetch_delta_correlation(Ghb* ghb, Addr pc){
   }
 
   int deltas[LOOKBACK_DEGREE] = {0};
-  Addr addr_to_be_prefetched[PREFETCH_DEGREE] = {0};
+  Addr addr_to_be_prefetched[NUM_BLOCKS_PREFETCH] = {0};
 
   Ghb_entry* current_entry = ghb->buf[ghb->index_table[pc]];
   if(current_entry->pc != pc){ // Check if index table entry is outdated
@@ -87,27 +88,25 @@ void prefetch_delta_correlation(Ghb* ghb, Addr pc){
   }
 
   // Find correlation match in delta table
-  int match = 0;
-  int match_index;
-  for(int i = 0; i < LOOKBACK_DEGREE-2; i+=2){
+  int match_index = -1;
+  for(int i = 0; i < LOOKBACK_DEGREE-MATCH_DEGREE; i++){
     if(deltas[i] == deltas[LOOKBACK_DEGREE-2] && deltas[i+1] == deltas[LOOKBACK_DEGREE-1]){
-      match = 1;
       match_index = i+1;
       break;
     }
   }
-  if(!match){ // Couldn't find pattern
+  if(match_index == -1){ // Couldn't find pattern
     return;
   }
 
   // Pick out addresses
   addr_to_be_prefetched[0] = ghb->buf[ghb->index_table[pc]]->miss_address + deltas[match_index];
-  for(int i = 1; i < PREFETCH_DEGREE; i++){
+  for(int i = 1; i < NUM_BLOCKS_PREFETCH; i++){
     if(match_index + i < LOOKBACK_DEGREE && deltas[match_index+i] != 0){
       addr_to_be_prefetched[i] = addr_to_be_prefetched[i-1] + deltas[match_index+i];
     }
   }
-  for(int i = 0; i < PREFETCH_DEGREE; i++){
+  for(int i = 0; i < NUM_BLOCKS_PREFETCH; i++){
     if(addr_to_be_prefetched[i]){
       issue_prefetch_check(addr_to_be_prefetched[i]);
     }
